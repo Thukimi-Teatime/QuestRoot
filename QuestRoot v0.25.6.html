@@ -657,6 +657,17 @@
     let assigningFromIndex = null;
     let assigningFromDepartment = null;
     let isTransferMode = false;
+    
+    // ========== ユーティリティ関数 ==========
+    
+    function getCharacterDepartment(character) {
+        // キャラクターが現在所属している部門を返す
+        // characterオブジェクトにdepartmentプロパティがあればそれを使用
+        if (character && character.department) return character.department;
+        
+        // そうでない場合は現在の部門を返す（簡易実装）
+        return currentDepartment || 'training';
+    }
     const labels = ['Main Quest', 'Section', 'Sub-Quest', 'Command'];
     const LEVEL_CAP_FOR_ASSIGNMENT = 5;
     const LEVEL_FOR_TRANSFER = 10;
