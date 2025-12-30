@@ -472,6 +472,8 @@
     const RESERVE_KEY = 'questRoot_reserve_v25';
     const LOG_KEY = 'questRoot_systemlog_v25';
     const TRANSFER_KEY = 'questRoot_transfer_v25';
+    const EQUIPMENT_KEY = 'questRoot_equipment_v25';
+    const OWNED_EQUIPMENT_KEY = 'questRoot_owned_equipment_v25';
     
     let tasks = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
     let templates = JSON.parse(localStorage.getItem(TEMP_KEY)) || [];
@@ -479,6 +481,8 @@
     let reserveCharacters = JSON.parse(localStorage.getItem(RESERVE_KEY)) || [];
     let systemLogs = JSON.parse(localStorage.getItem(LOG_KEY)) || [];
     let weeklyTransferData = JSON.parse(localStorage.getItem(TRANSFER_KEY)) || initWeeklyTransferData();
+    let ownedEquipment = JSON.parse(localStorage.getItem(OWNED_EQUIPMENT_KEY)) || [];
+    let equipmentIdCounter = Math.max(...ownedEquipment.map(e => e.instanceId || 0), 0) + 1;
     let currentDepartment = 'training';
     let currentMode = 'map'; 
     let assigningCharacter = null;
@@ -537,7 +541,78 @@
         }
     };
 
-    // ========== Weekly Transfer System ==========
+    // ========== Equipment System Constants ==========
+    
+    const EQUIPMENT_DROP_RATE = 0.05; // 5% drop rate
+    const EQUIPMENT_RARITY_RATES = {
+        1: 0.50, // ★1: 50% of drops (2.5% total)
+        2: 0.20, // ★2: 20% of drops (1.0% total)
+        3: 0.15, // ★3: 15% of drops (0.75% total)
+        4: 0.10, // ★4: 10% of drops (0.5% total)
+        5: 0.05  // ★5: 5% of drops (0.25% total)
+    };
+
+    const EQUIPMENT_DATABASE = [
+        // ★1 Common Equipment (20 items)
+        { id: 1, name: 'Iron Sword', type: 'weapon', rarity: 1, statBonus: { atk: 3 } },
+        { id: 2, name: 'Wooden Staff', type: 'weapon', rarity: 1, statBonus: { mp: 4, atk: 1 } },
+        { id: 3, name: 'Rusty Blade', type: 'weapon', rarity: 1, statBonus: { atk: 5 } },
+        { id: 4, name: 'Training Sword', type: 'weapon', rarity: 1, statBonus: { atk: 2, mp: 2 } },
+        { id: 5, name: 'Bronze Dagger', type: 'weapon', rarity: 1, statBonus: { atk: 4 } },
+        { id: 6, name: 'Leather Armor', type: 'armor', rarity: 1, statBonus: { hp: 5, def: 2 } },
+        { id: 7, name: 'Cloth Robe', type: 'armor', rarity: 1, statBonus: { mp: 6, def: 1 } },
+        { id: 8, name: 'Padded Vest', type: 'armor', rarity: 1, statBonus: { hp: 7 } },
+        { id: 9, name: 'Simple Shield', type: 'armor', rarity: 1, statBonus: { def: 4 } },
+        { id: 10, name: 'Work Clothes', type: 'armor', rarity: 1, statBonus: { hp: 4, def: 2 } },
+        { id: 11, name: 'Iron Mace', type: 'weapon', rarity: 1, statBonus: { atk: 4 } },
+        { id: 12, name: 'Short Bow', type: 'weapon', rarity: 1, statBonus: { atk: 3, mp: 1 } },
+        { id: 13, name: 'Stone Hammer', type: 'weapon', rarity: 1, statBonus: { atk: 5 } },
+        { id: 14, name: 'Apprentice Wand', type: 'weapon', rarity: 1, statBonus: { mp: 5 } },
+        { id: 15, name: 'Iron Spear', type: 'weapon', rarity: 1, statBonus: { atk: 4 } },
+        { id: 16, name: 'Hide Armor', type: 'armor', rarity: 1, statBonus: { hp: 6, def: 1 } },
+        { id: 17, name: 'Cloth Tunic', type: 'armor', rarity: 1, statBonus: { mp: 5, hp: 2 } },
+        { id: 18, name: 'Wooden Shield', type: 'armor', rarity: 1, statBonus: { def: 3 } },
+        { id: 19, name: 'Leather Boots', type: 'armor', rarity: 1, statBonus: { def: 2, hp: 2 } },
+        { id: 20, name: 'Work Gloves', type: 'armor', rarity: 1, statBonus: { def: 1, hp: 3 } },
+
+        // ★2 Uncommon Equipment (12 items)
+        { id: 21, name: 'Steel Blade', type: 'weapon', rarity: 2, statBonus: { atk: 12 } },
+        { id: 22, name: 'Apprentice Staff', type: 'weapon', rarity: 2, statBonus: { mp: 8, atk: 4 } },
+        { id: 23, name: 'Hunter Bow', type: 'weapon', rarity: 2, statBonus: { atk: 10, mp: 2 } },
+        { id: 24, name: 'Combat Knife', type: 'weapon', rarity: 2, statBonus: { atk: 11 } },
+        { id: 25, name: 'Iron Warhammer', type: 'weapon', rarity: 2, statBonus: { atk: 13 } },
+        { id: 26, name: 'Chain Mail', type: 'armor', rarity: 2, statBonus: { hp: 12, def: 5 } },
+        { id: 27, name: 'Mage Robe', type: 'armor', rarity: 2, statBonus: { mp: 10, def: 3 } },
+        { id: 28, name: 'Steel Shield', type: 'armor', rarity: 2, statBonus: { def: 8 } },
+        { id: 29, name: 'Reinforced Vest', type: 'armor', rarity: 2, statBonus: { hp: 10, def: 4 } },
+        { id: 30, name: 'Battle Gloves', type: 'armor', rarity: 2, statBonus: { def: 5, atk: 3 } },
+        { id: 31, name: 'Elven Sword', type: 'weapon', rarity: 2, statBonus: { atk: 10, mp: 5 } },
+        { id: 32, name: 'Dwarven Axe', type: 'weapon', rarity: 2, statBonus: { atk: 14 } },
+
+        // ★3 Rare Equipment (8 items)
+        { id: 33, name: 'Mithril Edge', type: 'weapon', rarity: 3, statBonus: { atk: 24 } },
+        { id: 34, name: 'Wizard Staff', type: 'weapon', rarity: 3, statBonus: { mp: 18, atk: 8 } },
+        { id: 35, name: 'Dragon Slayer', type: 'weapon', rarity: 3, statBonus: { atk: 26 } },
+        { id: 36, name: 'Enchanted Blade', type: 'weapon', rarity: 3, statBonus: { atk: 20, mp: 6 } },
+        { id: 37, name: 'Dragon Scale', type: 'armor', rarity: 3, statBonus: { hp: 22, def: 10 } },
+        { id: 38, name: 'Archmage Robe', type: 'armor', rarity: 3, statBonus: { mp: 20, def: 7 } },
+        { id: 39, name: 'Titanium Shield', type: 'armor', rarity: 3, statBonus: { def: 15 } },
+        { id: 40, name: 'Sacred Armor', type: 'armor', rarity: 3, statBonus: { hp: 18, def: 9 } },
+
+        // ★4 Epic Equipment - Department Specific (6 items)
+        { id: 41, name: 'Revenue Seeker', type: 'weapon', rarity: 4, statBonus: { atk: 25, mp: 15 }, departmentRestriction: 'business' },
+        { id: 42, name: 'Process Shield', type: 'armor', rarity: 4, statBonus: { def: 18, hp: 25 }, departmentRestriction: 'operations' },
+        { id: 43, name: 'Mana Crystal', type: 'weapon', rarity: 4, statBonus: { mp: 35, atk: 10 }, departmentRestriction: 'planning' },
+        { id: 44, name: 'Titan Hammer', type: 'weapon', rarity: 4, statBonus: { atk: 32, hp: 10 }, departmentRestriction: 'production' },
+        { id: 45, name: 'Support Baton', type: 'weapon', rarity: 4, statBonus: { hp: 15, mp: 15, atk: 15, def: 15 }, departmentRestriction: 'corporate' },
+        { id: 46, name: 'Training Manual', type: 'armor', rarity: 4, statBonus: { hp: 12, mp: 12, atk: 12, def: 12 }, departmentRestriction: 'training' },
+
+        // ★5 Legendary Equipment - Department Specific (4 items)
+        { id: 47, name: 'Golden Contract', type: 'weapon', rarity: 5, statBonus: { atk: 35, mp: 25 }, departmentRestriction: 'business' },
+        { id: 48, name: 'Perfect System', type: 'armor', rarity: 5, statBonus: { hp: 40, mp: 20, def: 30 }, departmentRestriction: 'operations' },
+        { id: 49, name: 'Strategic Vision', type: 'weapon', rarity: 5, statBonus: { mp: 45, atk: 20 }, departmentRestriction: 'planning' },
+        { id: 50, name: 'Master Craft', type: 'weapon', rarity: 5, statBonus: { atk: 40, hp: 30 }, departmentRestriction: 'production' }
+    ];
     
     function initWeeklyTransferData() {
         return {
@@ -1643,6 +1718,7 @@
         t.completedAt = new Date().toISOString();
         
         processLevelUp();
+        dropEquipment();
         
         checkParentReportStatus(t.parentId); 
         saveAndRender();
@@ -1652,6 +1728,7 @@
         tasks.find(t => t.id === id).workDone = true; 
         
         processLevelUp();
+        dropEquipment();
         
         saveAndRender(); 
     }
