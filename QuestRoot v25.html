@@ -1009,6 +1009,115 @@
         localStorage.setItem(RESERVE_KEY, JSON.stringify(reserveCharacters));
     }
 
+    // ========== Test Functions for Equipment System ==========
+    
+    function testEquipmentDrop(times = 1) {
+        console.log(`=== Equipment Drop Test (${times} times) ===`);
+        const results = [];
+        
+        for (let i = 0; i < times; i++) {
+            const result = dropEquipment();
+            if (result) {
+                results.push({
+                    name: result.name,
+                    rarity: result.rarity,
+                    type: result.type,
+                    statBonus: result.statBonus
+                });
+                console.log(`Drop ${i + 1}: ${result.name} ★${result.rarity} (${result.type})`);
+            } else {
+                console.log(`Drop ${i + 1}: No drop`);
+            }
+        }
+        
+        console.log(`=== Results Summary ===`);
+        console.log(`Total drops: ${results.length}/${times} (${(results.length/times*100).toFixed(1)}%)`);
+        
+        const rarityCount = {};
+        results.forEach(item => {
+            rarityCount[item.rarity] = (rarityCount[item.rarity] || 0) + 1;
+        });
+        
+        for (let rarity = 1; rarity <= 5; rarity++) {
+            const count = rarityCount[rarity] || 0;
+            const expectedRate = EQUIPMENT_RARITY_RATES[rarity] * EQUIPMENT_DROP_RATE * 100;
+            const actualRate = (count / times) * 100;
+            console.log(`★${rarity}: ${count} drops (Expected: ~${expectedRate.toFixed(2)}%, Actual: ${actualRate.toFixed(2)}%)`);
+        }
+        
+        return results;
+    }
+    
+    function testTaskCompletionWithDrops(times = 10) {
+        console.log(`=== Task Completion Test (${times} times) ===`);
+        
+        // テスト用のタスクを作成
+        const testTask = {
+            id: 'test-task-' + Date.now(),
+            text: 'Test Task for Equipment Drops',
+            workDone: false,
+            reportDone: false,
+            parentId: null
+        };
+        
+        tasks.push(testTask);
+        
+        let totalDrops = 0;
+        for (let i = 0; i < times; i++) {
+            // タスクを未完了状態にリセット
+            testTask.workDone = false;
+            testTask.reportDone = false;
+            
+            // タスク完了（ドロップ付き）
+            quickFinish(testTask.id);
+            
+            // ドロップが発生したかチェック
+            const lastItem = ownedEquipment[ownedEquipment.length - 1];
+            if (lastItem && lastItem.equipmentId) {
+                totalDrops++;
+                console.log(`Task ${i + 1}: Equipment drop - ${lastItem.name} ★${lastItem.rarity}`);
+            } else {
+                console.log(`Task ${i + 1}: No equipment drop`);
+            }
+        }
+        
+        // テストタスクを削除
+        tasks = tasks.filter(t => t.id !== testTask.id);
+        saveAndRender();
+        
+        console.log(`=== Task Completion Results ===`);
+        console.log(`Total tasks: ${times}`);
+        console.log(`Equipment drops: ${totalDrops}`);
+        console.log(`Drop rate: ${(totalDrops/times*100).toFixed(1)}% (Expected: ~5%)`);
+        
+        return { totalTasks: times, totalDrops, dropRate: totalDrops/times };
+    }
+    
+    function showOwnedEquipment() {
+        console.log('=== Owned Equipment ===');
+        if (ownedEquipment.length === 0) {
+            console.log('No equipment owned');
+            return;
+        }
+        
+        ownedEquipment.forEach((item, index) => {
+            const rarityStars = '★'.repeat(item.rarity);
+            const equippedText = item.isEquipped ? ` (Equipped to character ${item.equippedTo})` : ' (Not equipped)';
+            console.log(`${index + 1}. ${item.name} ${rarityStars} - ${item.type}${equippedText}`);
+            console.log(`   Stats:`, item.statBonus);
+        });
+    }
+    
+    function clearTestEquipment() {
+        const testItems = ownedEquipment.filter(eq => eq.name && eq.name.includes('Test'));
+        if (testItems.length > 0) {
+            ownedEquipment = ownedEquipment.filter(eq => !eq.name.includes('Test'));
+            saveOwnedEquipment();
+            console.log(`Cleared ${testItems.length} test equipment items`);
+        }
+    }
+    }
+
     function switchDepartment(deptId) {
         currentDepartment = deptId;
         saveAndRender();
