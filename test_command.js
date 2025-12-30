@@ -1,1 +1,0 @@
-testEquipmentDrop(5)
